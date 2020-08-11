@@ -1,0 +1,541 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!DOCTYPE mapper
+  	PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  	"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+  	
+<mapper namespace="user">
+
+	<!-- 닉네임 중복 검사  -->
+	<select id="checkNickname" parameterType="string" resultType="int">
+		select count(*) from member_gg where nickname = #{nickname}
+	</select>
+	
+	<!-- 이메일 중복 검사  -->
+	<select id="checkEmail" parameterType="string" resultType="int">
+		select count(*) from member_gg where member_email = #{member_email}
+	</select>
+	
+	<!-- 멤버 등록  -->
+	<insert id="insertMember" parameterType="dto.MemberDto">
+		insert into member_gg(member_email, nickname, password, zipcode, address1, address2, tel,
+		 		gender, birth_date, visit_path)
+		 		values(#{member_email}, #{nickname}, #{password}, #{zipcode}, #{address1}, #{address2}, #{tel}, 
+		 		 		#{gender, jdbcType=VARCHAR}, #{birth_date, jdbcType=VARCHAR}, #{visit_path, jdbcType=VARCHAR})		
+	</insert>
+	
+	<!-- 멤버 로그인 -->
+	<select id="getMemberFromLogin" parameterType="String" resultType="dto.MemberDto">
+ 		select * from member_gg where member_email=#{member_email}
+ 	</select>
+ 	
+ 	<!-- 멤버 상태 체크 -->
+ 	<select id="checkStatus" parameterType="String" resultType="String">
+		select member_status from member_gg where member_email=#{member_email}
+ 	</select>
+ 	
+ 	<!-- 멤버 상태 변경(휴먼) -->
+ 	<update id="activateStatusFromLogin" parameterType="int">
+ 		update member_gg set member_status = 'active' where member_id = #{member_id}
+ 	</update>
+		
+		
+	<!-- 히트 상품 가져오기 -->
+	<select id="getHitPostFromMain" resultType="dto.join.HitPostDto">
+		select * from 
+			(select p.category_id,
+       			c.category_name,
+		        pp.post_id, 
+		        pp.post_title,
+		        pp.current_amount,
+		        p.product_name,
+		        p.thumbnail,
+		        p.image,
+		        row_number() over (partition by p.category_id
+		        order by p.category_id, pp.current_amount desc) as ranking
+		        from product_gg p, post_gg pp, category_gg c
+		        where p.product_id = pp.product_id and p.category_id = c.category_id  and pp.post_status = 'A'
+	 		)
+	 		where ranking =1
+ 	</select>
+ 	
+ 	<!-- mainPostList(전상품 다 나와있는 리스트) -->
+ 	<select id="getPostFromPostList" parameterType="common.PageInfoDto" resultType="dto.join.HitPostDto">
+ 		select * 
+		from (select category_id,
+		       category_name,
+		       post_id, 
+		       post_title,
+		       current_amount,
+		       content,
+		       product_name,
+		       thumbnail,
+		       image,
+		       rownum r
+		    from (select p.category_id,
+		            c.category_name,
+		            pp.post_id, 
+		            pp.post_title,
+		            pp.current_amount,
+		            pp.content,
+		            p.product_name,
+		            p.thumbnail,
+		          	p.image,
+		            pp.post_status
+		            from product_gg p, post_gg pp, category_gg c
+		            where p.product_id = pp.product_id and p.category_id = c.category_id
+		            and (upper(c.category_name) like upper('%'|| trim(#{param, jdbcType=VARCHAR}) ||'%')
+              			or upper(pp.post_title) like upper('%'|| trim(#{param, jdbcType=VARCHAR}) ||'%')
+              			or upper(p.product_name) like upper('%'|| trim(#{param, jdbcType=VARCHAR}) ||'%'))
+		            order by post_status, post_id desc)
+		        )
+		where r &gt;= #{start} and r &lt;= #{end}
+		
+	</select>
+	
+	<!-- 카테고리별 list 만들기 위한 post 개수 -->
+	<select id="getCatePostCount" parameterType="int" resultType="int">
+		select count(*) 
+		from post_gg 
+		where product_id in 
+			(select product_id 
+			from product_gg 
+			where category_id=#{category_id})
+	</select>
+	
+	<!-- 카테고리별 검색조건에 따른 post 개수 -->
+	<select id="getSearchCatePostCount" parameterType="java.util.Map" resultType="int">
+		select count(*) 
+		from post_gg 
+		where product_id in 
+			(select product_id 
+			from product_gg 
+			where category_id=#{category_id})
+		and upper(${select}) like upper('%'||trim(#{keyword,jdbcType=VARCHAR})||'%')	
+	</select>
+
+	<!-- 카테고리별 리스트-->
+	<select id="getCatePostFromPostList" parameterType="java.util.Map" resultType="dto.join.HitPostDto">
+		select * 
+	    from (select category_id,
+	           category_name,
+	           post_id, 
+	           post_title,
+	           current_amount,
+	           content,
+	           product_name,
+	           thumbnail,
+	           image,
+	           rownum r
+	        from (select p.category_id,
+	            c.category_name,
+	            pp.post_id, 
+	            pp.post_title,
+	            pp.current_amount,
+	            pp.content,
+	            p.product_name,
+	            p.thumbnail,
+	            p.image,
+	            pp.post_status
+	            from product_gg p, post_gg pp, category_gg c
+	            where p.product_id = pp.product_id and p.category_id = c.category_id 
+	            		and c.category_id = #{category_id}
+	            order by post_status, post_id desc)
+	            )
+	    where r &gt;= #{start} and r &lt;= #{end}
+	</select>	
+
+	<!-- 카테고리별 검색조건에 따른 리스트-->
+	<select id="getSearchCatePostFromPostList" parameterType="java.util.Map" resultType="dto.join.HitPostDto">
+		select * 
+	    from (select category_id,
+	           category_name,
+	           post_id, 
+	           post_title,
+	           current_amount,
+	           content,
+	           product_name,
+	           thumbnail,
+	           image,
+	           rownum r
+	        from (select p.category_id,
+	            c.category_name,
+	            pp.post_id, 
+	            pp.post_title,
+	            pp.current_amount,
+	            pp.content,
+	            p.product_name,
+	            p.thumbnail,
+	            p.image,
+	            pp.post_status
+	            from product_gg p, post_gg pp, category_gg c
+	            where p.product_id = pp.product_id and p.category_id = c.category_id 
+	            		and c.category_id = #{category_id}
+	            order by post_status, post_id desc)
+	            )
+	    where upper(${select}) like upper('%'||trim(#{keyword,jdbcType=VARCHAR})||'%')
+	</select>
+	
+	<!-- 종료된 게시글 검색조건에 따른 전체 개수  -->
+	<select id="getSearchFinishedPostCount" parameterType="java.util.Map" resultType="int">
+		select count(*) from post_gg where post_status='S'
+		and upper(${select}) like upper('%'||trim(#{keyword,jdbcType=VARCHAR})||'%')
+	</select>
+		
+	<!-- 종료된 게시글 검색조건에 따른 리스트 -->
+	<select id="getSearchFinishedPostRangeList" parameterType="common.PageInfoDto" resultType="dto.join.ManagerPostListDto">
+		select *
+		from(
+		    select po.post_id, po.post_title, po.default_price, po.fixed_price, po.minimum_amount, po.payment_amount, po.current_amount, po.content,
+		    	 po.post_time, pr.product_name, pr.product_model, pr.thumbnail, rownum r  
+		    from post_gg po, product_gg pr
+		    where po.product_id=pr.product_id and po.post_status ='S'
+		)
+		 where upper(${param}) like upper('%'||trim(#{param2,jdbcType=VARCHAR})||'%')		 
+	</select>	
+	
+		
+	<!-- postContent 페이지에 보여줄 content -->
+ 	<select id="getPostContentFromContent" parameterType="int" resultType="dto.join.PostContentDto">
+ 		select *
+		from (
+		    select post_id, post_gg.product_id, category_name, post_title, post_status, 
+		    		product_name, image, product_model, current_amount, default_price,content, payment_amount
+		    from post_gg, product_gg, category_gg
+		    where post_gg.product_id = product_gg.product_id 
+		    		and product_gg.category_id = category_gg.category_id)
+		where post_id=#{post_id}
+ 	</select>
+ 	
+ 	<!-- postContent에서 top3 리뷰 가져오기 -->
+ 	<select id="getReviewFromContent" parameterType="int" resultType="dto.ReviewDto">
+ 		select * from
+		    (select review_num, member_id, payment_id, title, upload_date, 
+		    		replycount, readcount, likecount, content, rownum r
+		    from review_gg
+		    where payment_id in 
+		            (select payment_id
+		            from payment_gg
+		            where application_id in
+		                (select application_id
+		                from application_gg
+		                where post_id in
+		                    (select post_id
+		                    from post_gg
+		                    where product_id = #{product_id})))
+		    order by likecount desc)
+		where rownum &lt;=3
+ 	</select>	
+ 	
+	<!-- 신청 수량 초과 방어하기 위해 현재 진행 수량 가져오기 -->
+	<select id="getCurrentamountFromApply" parameterType="int" resultType="int">
+		select current_amount from post_gg where post_id = #{post_id}
+	</select> 	
+ 
+ 	<!-- 그리고 진행수량 -->
+	<select id="getMinamountFromApply" parameterType="int" resultType="int">
+		select minimum_amount from post_gg where post_id = #{post_id}
+	</select>
+	
+	<!-- Insert -->
+ 	<!-- 공구 신청 -->
+ 	<insert id="registerAppFromPostContent" parameterType="int">
+ 		insert into application_gg(member_id, post_id, amount) values (#{member_id}, #{post_id}, #{amount}) 
+ 	</insert>	
+ 	
+ 	<select id="getappId" parameterType="int" resultType="dto.ApplicationDto">
+ 		select * from application_gg where application_id=#{application_id}
+ 	</select>	
+
+  	<!-- 유저 공구 신청시 신청수량 변경 -->
+ 	<update id="updateAppFromPostContent" parameterType="java.util.Map">
+ 		update post_gg set current_amount = current_amount + #{amount} where post_id = #{post_id}
+ 	</update>	
+ 	<!-- 공구 신청 취소시 수량 -1 -->
+ 	<update id="deleteupdateAppFromPostPostContent" parameterType="dto.ApplicationDto">
+ 		update post_gg set current_amount = current_amount - #{amount} where post_id = #{post_id}
+ 	</update>
+ 		
+
+ 	<!-- 결제 가능한 상품 -->
+ 	<select id="getPayablePostFromMypage" parameterType="int" resultType="dto.join.PayablePostDto">
+ 		select * from 
+			(select thumbnail, post_title, product_name, amount, 
+					fixed_price*amount as total_price, application_gg.post_id, application_id,
+					content, current_amount
+      		 from post_gg, product_gg, application_gg 
+      		 where post_gg.post_id = application_gg.post_id 
+        		and post_gg.product_id = product_gg.product_id 
+        		and member_id=#{member_id} and post_status = 'P'
+        		and application_id not in (select application_id from payment_gg))
+ 	</select> 	
+ 		
+ 	<!-- 진행 인원 부족하여 결제 불가능한 상품 -->
+  	<select id="getNotPayablePostFromMypage" parameterType="int" resultType="dto.join.PayablePostDto">
+ 		select * from 
+			(select thumbnail, post_title, product_name, amount, 
+					fixed_price*amount as total_price, application_gg.post_id, application_id,
+					content, current_amount
+      		 from post_gg, product_gg, application_gg 
+      		 where post_gg.post_id = application_gg.post_id 
+        		and post_gg.product_id = product_gg.product_id 
+        		and member_id=#{member_id} and post_status in ('A', 'C', 'P'))
+ 	</select>
+ 	 	
+ 	<!-- 내가 쓴 리뷰 -->
+ 	<select id="getReviewListFromMypage" parameterType="int" resultType="dto.ReviewDto">
+ 		select * from review_gg where member_id=#{member_id}
+ 	</select> 	
+ 	
+  	<!-- 내가 쓴 댓글 -->
+ 	<select id="getReplyListFromMypage" parameterType="int" resultType="dto.ReplyDto">
+ 		select * from reply_gg where member_id=#{member_id}
+ 	</select>	
+ 	
+  	<!-- 결제한 포스트 리스트(구매내역) -->
+ 	<select id="getPayedPostListFromMypage" parameterType="java.util.Map" resultType="dto.join.PayedPostDto">
+ 		 select * 
+			from (select thumbnail, payment_id, payment_gg.application_id, application_gg.post_id, post_title, 
+						product_name, fixed_price*amount as total_price, review_writable, paytime,
+						content, current_amount, rownum r
+        			from post_gg, product_gg, application_gg, payment_gg
+        				where post_gg.post_id = application_gg.post_id
+		            and post_gg.product_id = product_gg.product_id
+		            and application_gg.application_id = payment_gg.application_id
+		            and member_id = #{member_id})
+		where r &gt;= #{start} and r &lt;= #{end}
+ 	</select>	
+ 	
+  	<!-- 마이페이지에서 구매내역 페이지 나누기 위한 구매count -->
+ 	<select id="getPaymentCount" parameterType="int" resultType="int">
+ 		select count(*) 
+		from payment_gg, application_gg 
+		where payment_gg.application_id = application_gg.application_id 
+			and member_id=#{member_id}
+ 	</select>	
+ 
+ 
+  	<!-- 신청 취소 -->
+ 	<delete id="cancelAppFromMypage" parameterType="int">
+ 		delete from application_gg where application_id=#{application_id}
+ 	</delete>
+ 	
+ 
+  	<!-- 내정보 보기를 위한 멤버정보  -->
+ 	<select id="getMemberFromMypage" parameterType="int" resultType="dto.MemberDto">
+ 		select * from member_gg where member_id=#{member_id}
+ 	</select>
+ 	
+ 	<!-- 내 정보 변경 -->
+ 	<update id="modifyInfor" parameterType="dto.MemberDto">
+ 		update member_gg 
+		set nickname = #{nickname}, password = #{password}, 
+    		zipcode = #{zipcode}, address1 = #{address1}, address2 = #{address2},
+    		tel = #{tel}
+		where member_id = #{member_id}
+ 	</update> 	
+ 	
+  	<!-- 회원 탈퇴(inactive 상태) -->
+ 	<update id="deleteMemberFromMypage" parameterType="int">
+ 		update member_gg set member_status = 'inactive' where member_id = #{member_id}
+ 	</update>	
+ 	
+ 	
+ 	<!-- 리뷰리스트 -->
+ 	<select id="getReviewListFromBoard" parameterType="common.PageInfoDto" resultType="dto.join.ReviewContentDto">
+		select  *
+		from (select nickname, member_id, review_num, payment_id, title, upload_date, 
+					replycount, readcount, likecount, content, rownum r 
+			from (select nickname, member_gg.member_id, review_num, payment_id, title, upload_date, 
+					replycount, readcount, likecount, content
+        			from member_gg, review_gg
+        			where member_gg.member_id = review_gg.member_id
+                    order by review_num desc)
+		        )
+		where r &gt;= #{start} and r &lt;=#{end}	
+	</select>
+
+	<!-- 검색조건에 맞는 리뷰 갯수 -->
+	<select id="getSearchReviewCount" parameterType="java.util.Map" resultType="int">
+		select count(*) from review_gg rew, member_gg mem where rew.member_id=mem.member_id
+		and upper(${select}) like upper('%'||trim(#{keyword,jdbcType=VARCHAR})||'%')
+	</select>
+	
+	<!-- 검색조건에 맞는 리뷰리스트 -->
+	<select id="getSearchReviewListFromBoard" parameterType="common.PageInfoDto" resultType="dto.join.ReviewContentDto">
+		select  *
+		from (select nickname, member_id, review_num, payment_id, title, upload_date, 
+					replycount, readcount, likecount, content, rownum r 
+			from (select nickname, member_gg.member_id, review_num, payment_id, title, upload_date, 
+					replycount, readcount, likecount, content
+        			from member_gg, review_gg
+        			where member_gg.member_id = review_gg.member_id
+                    order by review_num desc)
+		        )
+		where upper(${param}) like upper('%'||trim(#{param2,jdbcType=VARCHAR})||'%')
+	</select> 	
+ 	
+ 	<!-- 리뷰content 페이지에서 리뷰 데이터 -->
+	<select id="getReviewContent" parameterType="int" resultType="dto.join.ReviewContentDto">
+		select nickname, member_gg.member_id, review_num, payment_id, title, upload_date, 
+				replycount, readcount, likecount, content
+		from member_gg, review_gg
+		where member_gg.member_id = review_gg.member_id
+		and review_num = #{review_num}
+	</select>	
+ 	
+  	<!-- 조회수 올리기 -->
+ 	<update id="addCountFromReview" parameterType="int">
+ 		update review_gg set readcount = readcount+1
+ 		where review_num = #{review_num}
+ 	</update>	
+ 	
+ 	<!-- 리뷰content 페이지에서 어떤 상품인지 가져오기 -->
+  	<select id="getPayedPostFromReview" parameterType="int" resultType="dto.join.PayedPostDto">
+ 		select * 
+		from (select thumbnail, payment_id, payment_gg.application_id, application_gg.post_id, 
+					post_title, product_name, fixed_price*amount as total_price, 
+					review_writable, paytime
+        	from post_gg, product_gg, application_gg, payment_gg
+        	where post_gg.post_id = application_gg.post_id
+            	and post_gg.product_id = product_gg.product_id
+            	and application_gg.application_id = payment_gg.application_id
+            	and payment_id = #{payment_id})
+ 	</select>	
+ 	
+ 	<!-- 리뷰content 페이지에서 댓글 데이터 -->
+ 	<select id="getReplyContentFromReview" parameterType="int" resultType="dto.join.ReplyContentDto">
+	 	select nickname, member_gg.member_id, reply_num, review_num, upload_date, content
+		from member_gg, reply_gg
+		where member_gg.member_id = reply_gg.member_id 
+			and review_num = #{review_num}
+		order by reply_num DESC
+ 	</select>	
+ 
+  	<!-- 리뷰 작성 -->
+ 	<insert id="uploadReview" parameterType="dto.ReviewDto">
+ 		insert into review_gg (member_id, payment_id, title, content ) 
+		values( #{member_id}, #{payment_id}, #{title}, #{content} )
+ 	</insert>	
+ 	
+  	<!-- writable 상태 업데이트 -->
+ 	<update id="updateWritableFromReview" parameterType="int">
+ 		update payment_gg set review_writable = 1 
+ 		where payment_id=#{payment_id}
+ 	</update>
+ 	
+ 	<!-- 리뷰 수정 -->
+  	<update id="modifyReview" parameterType="dto.ReviewDto">
+ 		update review_gg 
+		set title = #{title}, content = #{content}
+		where review_num = #{review_num}
+ 	</update>	
+ 
+  	<!-- 리뷰 삭제하기 전에 삭제테이블로 옮기기 --><!-- 사용안함 -->
+ 	<insert id="insertReviewintoDeletedReview" parameterType="dto.ReviewDto">
+ 		insert into deleted_review_gg (review_num, member_id, payment_id, title,
+ 									upload_date, replycount, readcount, likecount, content)
+ 		values (#{review_num}, #{member_id}, #{payment_id}, #{title}
+ 				#{upload_date}, #{replycount}, #{readcount}, #{likecount}, #{content})
+ 	</insert>	
+ 		
+  	<!-- 댓글 작성 -->
+ 	<insert id="uploadReplyFromReview" parameterType="dto.ReplyDto">
+ 		insert into reply_gg(review_num, member_id, content) values (#{review_num}, #{member_id}, #{content})
+ 	</insert>
+ 	
+  	<!-- 리뷰에 댓글 작성시 리뷰개수 변경  +1-->
+ 	<update id="updateReplycountFromReview" parameterType="int">
+ 		update review_gg set replycount = replycount + 1 where review_num = #{review_num}
+ 	</update>	
+ 	
+ 	<!-- 리뷰에 댓글 삭제시 리뷰개수 변경  -1 -->
+ 	<update id="deleteupdateReplycountFromReview" parameterType="int">
+ 		update review_gg set replycount = replycount - 1 where review_num = #{review_num}
+ 	</update>
+ 	
+ 	<!-- 댓글 삭제 -->
+  	<delete id="deleteReplyFromReview" parameterType="int">
+ 		delete from reply_gg where reply_num=#{reply_num}
+ 	</delete>	
+ 
+ 	<!-- 이미 좋아요 눌렀는지 체크 -->
+	<select id="check" parameterType="java.util.Map" resultType="int">
+ 		select count(*) from like_gg where member_id=#{member_id} and review_num=#{review_num}
+ 	</select>
+ 	
+ 	<!-- 좋아요 하기-->
+	<insert id="likeinsert" parameterType="dto.LikeDto">
+		insert into like_gg(review_num, member_id)
+		values( #{review_num}, #{member_id} )	
+	</insert>
+	
+	<!-- like 증가 -->
+	<update id="addlike" parameterType="int">
+		update REVIEW_GG set likecount=likecount+1 where review_num=#{review_num}
+	</update>	
+	
+ 	<!-- 결제  -->
+ 	<insert id="registerPaymentFromPayment" parameterType="dto.PaymentDto">
+ 		insert into payment_gg(application_id, receiver_name, zipcode, address1, address2, 
+ 								total_price, method, request)
+		values (#{application_id}, #{receiver_name}, #{zipcode}, #{address1}, #{address2}, 
+				#{total_price}, #{method}, #{request, jdbcType=VARCHAR})
+ 	</insert>	
+ 	
+ 	<!-- 알림 가져오기 -->
+ 	<select id="getNotificationById" parameterType="int" resultType="dto.NotificationDto">
+ 		select * from notification_gg where member_id=#{member_id}
+ 	</select>
+ 	
+ 	<!-- 알림 삭제하기 -->
+ 	<delete id="deleteAllNotification" parameterType="int">
+ 		delete from notification_gg where member_id=#{member_id}
+ 	</delete>
+ 	
+ 	<!-- 읽음 상태로 바꾸기 -->
+ 	<update id="updateReadStatus" parameterType="int">
+ 		update notification_gg set read_status = '1' where member_id = #{member_id}
+ 	</update>
+ 	
+ 	<!-- 읽지 않은 알림 체크 -->
+ 	<select id="checkNotificationNotRead" parameterType="int" resultType="int">
+ 		select count(*) from notification_gg where member_id = #{member_id} and read_status = 0
+ 	</select>	
+ 		
+ 	<!-- 닉네임으로 멤버 id얻기 -->
+	<select id="getMemberIdByNickname" parameterType="string" resultType="int">
+		select member_id from member_gg where nickname=#{nickname}
+	</select>
+	
+	<!-- 최근 게시물 가져오기(6개) -->
+	<select id="getRecentlyPostFromMain" resultType="dto.join.MainPagePostDto">
+		select * 
+		from (select category_id,
+		       category_name,
+		       post_id, 
+		       post_title,
+		       current_amount,
+		       content,
+		       product_name,
+		       thumbnail,
+		       image,
+		       rownum r
+		    from (select p.category_id,
+		            c.category_name,
+		            pp.post_id, 
+		            pp.post_title,
+		            pp.current_amount,
+		            pp.content,
+		            p.product_name,
+		            p.thumbnail,
+		          	p.image,
+		            pp.post_status
+		            from product_gg p, post_gg pp, category_gg c
+		            where p.product_id = pp.product_id and p.category_id = c.category_id
+		            order by post_status, post_id desc)
+		        )
+		where r &gt;= 1 and r &lt;= 6
+ 	</select>
+</mapper>
+

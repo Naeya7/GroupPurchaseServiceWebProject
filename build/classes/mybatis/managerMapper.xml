@@ -1,0 +1,307 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!DOCTYPE mapper
+  	PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  	"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+  	
+<mapper namespace="manager">
+	
+	<!-- 매니저 로그인 확인 -->
+	<select id="managerLoginCheck" parameterType="dto.ManagerDto" resultType="dto.ManagerDto">
+		select * from manager_gg where manager_id=#{manager_id} and password=#{password}
+	</select>
+	
+	<!-- 카테고리 얻기 -->
+	<select id="getAllCatroty" resultType="dto.CategoryDto">
+		select * from category_gg
+	</select>
+	
+	<!-- 제품 리스트 얻기 -->
+	<select id="getAllProduct" resultType="dto.ProductDto">
+		select * from product_gg order by product_id desc
+	</select>
+	
+	<!-- 제품 등록 -->
+	<insert id="insertProduct" parameterType="dto.ProductDto">
+		insert into product_gg(PRODUCT_ID, PRODUCT_NAME, PRODUCT_MODEL, CATEGORY_ID, THUMBNAIL, IMAGE, PRODUCT_STATUS)
+		values(PRODUCT_GG_SEQUENCE.NEXTVAL, #{product_name}, #{product_model}, #{category_id}, 
+		#{thumbnail}, #{image}, #{product_status, jdbcType=VARCHAR})
+	</insert>
+
+	<!-- 제품 개수 -->
+	<select id="getProductCount" resultType="int">
+		select count(*) from product_gg
+	</select>
+	
+	<!-- 관리자 페이지_제품 리스트 -->
+	<select id="getProductRangeList" parameterType="common.PageInfoDto" resultType="dto.ProductDto">
+		select *
+		from(select PRODUCT_ID, PRODUCT_NAME, PRODUCT_MODEL, CATEGORY_ID, THUMBNAIL, IMAGE, PRODUCT_STATUS, rownum r  
+			 from product_gg)
+		where r &gt;= #{start} and r &lt;= #{end} 
+	</select>
+	
+	<!-- 리뷰 전체 개수 -->
+	<select id="getReviewCount" resultType="int">
+		select count(*) from review_gg
+	</select>
+	
+	<!-- 관리자 _리뷰 리스트(멤버닉네임, 게시글 타이틀 추가)-->
+	<select id="getReviewRangeList" parameterType="common.PageInfoDto" resultType="dto.join.ManagerReviewListDto">
+		select *
+		from(select r.review_num, r.title, r.content, po.post_title, r.replycount, r.readcount, r.likecount,  m.nickname, r.upload_date, rownum r
+			from review_gg r, member_gg m, payment_gg p, application_gg a, post_gg po
+			where r.member_id=m.member_id and p.payment_id = r.payment_id and a.application_id = p.payment_id and po.post_id = a.post_id)
+		where r &gt;= #{start} and r &lt;= #{end} 
+	</select>
+	
+	<!-- 멤버 전체 개수 -->
+	<select id="getMeberCount" resultType="int">
+		select count(*) from member_gg
+	</select>
+	
+	<!-- 관리자_멤버 리스트 -->
+	<select id="getMemberRangeList" parameterType="common.PageInfoDto" resultType="dto.MemberDto">
+		select *
+		from(select member_id,member_email, nickname, zipcode, address1, address2, tel, member_status, join_date, rownum r  
+			 from member_gg)
+		where r &gt;= #{start} and r &lt;= #{end} 
+	</select>
+	
+
+	<!-- 알림 전체 개수 -->
+	<select id="getNotificationCount" resultType="int">
+		select count(*) from notification_gg
+	</select>
+	
+	<!-- 관리자_알림 리스트 -->
+	<select id="getNotificationRangeList" parameterType="common.PageInfoDto" resultType="dto.join.ManagerNotificationListDto">
+		select *
+		from(select n.notify_id, ma.manager_name, m.nickname, m.member_email, n.post_id, n.content, n.notify_time, rownum r     
+           	from member_gg m, manager_gg ma, notification_gg n
+           	where n.member_id=m.member_id and n.manager_id=ma.manager_id)
+        where r &gt;= #{start} and r &lt;= #{end}
+	</select>
+	
+	<!-- 게시글 전체 개수 -->
+	<select id="getPostCount" resultType="int">
+		select count(*) from post_gg
+	</select>
+	
+	<!-- 종료된 게시글 전체 개수 -->
+	<select id="getFinishedPostCount" resultType="int">
+		select count(*) from post_gg where post_status='S'
+	</select>		
+	
+	<!-- 종료된 게시글 리스트 -->
+	<select id="getFinishedPostRangeList" parameterType="common.PageInfoDto" resultType="dto.join.ManagerPostListDto">
+		select *
+		from(
+		    select po.post_id, po.post_title, po.default_price, po.fixed_price, po.minimum_amount, po.payment_amount, po.current_amount, po.content,
+		    	 po.post_time, pr.product_name, pr.product_model, pr.thumbnail, rownum r  
+		    from post_gg po, product_gg pr
+		    where po.product_id=pr.product_id and po.post_status ='S'
+		)
+		 where r &gt;= #{start} and r &lt;= #{end}
+	</select>
+	
+	<!-- 종료된 게시글 전체 개수 -->
+	<select id="getActivedPostCount" resultType="int">
+		select count(*) from post_gg where post_status != 'S' 
+	</select>
+	
+	<!-- 진행중인 게시글 리스트 -->
+	<select id="getActivedPostRangeList" parameterType="common.PageInfoDto" resultType="dto.join.ManagerPostListDto">
+		select *
+		from(
+		    select po.post_id, po.post_title, po.default_price, po.fixed_price, po.minimum_amount, po.payment_amount, po.current_amount, po.content,
+		    	 po.post_time, po.post_status, pr.product_name, pr.product_model, pr.thumbnail, rownum r  
+		    from post_gg po, product_gg pr
+		    where po.product_id=pr.product_id and po.post_status !='S'
+		)
+		 where r &gt;= #{start} and r &lt;= #{end}
+	</select>
+	
+	<!-- 게시글 상태 변경 -->		
+	<update id="updatePostStatus" parameterType="java.util.Map">
+		update post_gg set post_status = #{post_status} where post_id = #{post_id}
+	</update>
+	
+	<!-- 알림 삭제 -->		
+	<delete id="deleteNotification" parameterType="int">
+		delete from notification_gg where notify_id=#{notify_id}		
+	</delete>	
+	
+	<!-- 리뷰삭제 -->
+	<delete id="deleteReview" parameterType="int">
+		delete from review_gg where review_num=#{review_num}	
+	</delete>
+	
+	<!-- ID로 리뷰 하나 얻기 -->
+	<select id="getReviewById" parameterType="int" resultType="dto.ReviewDto">
+		select * from review_gg where review_num=#{review_num}
+	</select>
+	
+	<!-- 삭제된 리뷰 테이블에 삭제할 리뷰 넣기 -->
+	<insert id="insertDeletedReview" parameterType="dto.ReviewDto">
+		insert into deleted_review_gg(review_num, member_id, payment_id, title, upload_date, replycount, readcount, likecount, content)
+		values(#{review_num}, #{member_id}, #{payment_id}, #{title}, #{upload_date}, #{replycount}, #{readcount},#{likecount}, #{content})			
+	</insert>
+	
+	<!-- 특정 멤버 특정 상태로 바꾸기 -->
+	<update id="updateMemberStatus" parameterType="java.util.Map">
+		update member_gg set member_status = #{member_status} where member_id = #{member_id}
+	</update>
+	
+	<!-- ID로 제품 얻기 -->
+	<select id="getProductById" parameterType="int" resultType="dto.ProductDto">
+		select * from product_gg where product_id=#{product_id}
+	</select>
+	
+	<!-- 이미지 포함해서 제품 업데이트 하기 -->
+	<update id="updateProductChangeImage" parameterType="dto.ProductDto">
+		update product_gg 
+		set product_name = #{product_name}, product_model = #{product_model}, category_id = #{category_id},
+			image = #{image}, thumbnail = #{thumbnail} 
+		where product_id = #{product_id}
+	</update>
+	
+	<!-- 이미지 미포함 제품 업데이트 하기 -->
+	<update id="updateProduct" parameterType="dto.ProductDto">
+		update product_gg 
+		set product_name = #{product_name}, product_model = #{product_model}, category_id = #{category_id}
+		where product_id = #{product_id}
+	</update>
+	
+	<!-- 제품 ID로 게시글 개수 세기 -->
+	<select id="getPostCountByProductId" parameterType="int" resultType="int">
+		select count(*) from post_gg where product_id=#{product_id}
+	</select>
+	
+	<!-- ID로 제품 삭제하기 -->
+	<delete id="deleteProduct" parameterType="int">
+		delete from product_gg where product_id=#{product_id}	
+	</delete>
+	
+	<!-- 제품 이름이 포함된 제품수 얻기 (product_name)-->
+	<select id="getProductCountByProductName" parameterType="string" resultType="int">
+		select count(*) from product_gg where product_name like '%'||#{product_name}||'%'
+	</select>
+	
+	<!-- 제품 이름이 으로 검색된 제품얻기  -->
+	<select id="getProductRangeListByProductName" parameterType="common.PageInfoDto" resultType="dto.ProductDto">
+		select *
+		from(select product_id, product_name, product_model, category_id, thumbnail, image, product_status, rownum r  
+			 from product_gg
+			 where product_name like '%'||#{param}||'%')
+		where r &gt;= #{start} and r &lt;= #{end} 
+	</select>	
+
+	<!-- ID로 알림 보내기 -->
+	<insert id="insertNotificationByMemberId" parameterType="dto.NotificationDto">
+		insert into notification_gg(manager_id, member_id, content)
+		values(#{manager_id}, #{member_id}, #{content})		
+	</insert>
+	
+	<!-- 게시글 ID로 신청한 멤버ID리스트 얻기 -->
+	<select id="getAllMemberIdbyPostId" parameterType="int" resultType="int">
+		select member_id from application_gg where post_id=#{post_id}
+	</select>
+	
+	<!-- POST를 신청한 멤버에게 알림 보내기 -->
+	<insert id="insertAllNotificationByMemberId" parameterType="dto.NotificationDto">
+		insert into notification_gg(manager_id, member_id, post_id, content)
+		values(#{manager_id}, #{member_id}, #{post_id}, #{content})		
+	</insert>
+	
+	
+	<!-- 제품 ID로 협상가격 입력하기  -->
+	<update id="updatePostFixed_price" parameterType="dto.PostDto">
+		update post_gg set fixed_price = #{fixed_price} where post_id = #{post_id}
+	</update>
+	
+	<!-- 결제리스트 전체 개수  -->
+	<select id="getPaymentCount" resultType="int">
+		select count(*) from payment_gg
+	</select>
+	
+	<!-- 전체 결제 리스트 가져오기(범위) -->
+	<select id="getPaymentRangeList" parameterType="common.PageInfoDto" resultType="dto.PaymentDto">
+		select *
+		from(select payment_id, application_id, receiver_name, review_writable, zipcode, address1, address2,
+			 total_price, method, paytime, request, rownum r  
+			 from payment_gg)
+		where r &gt;= #{start} and r &lt;= #{end} 
+	</select>
+	
+	<!-- payment_id로 작성된 리뷰 체크하기 -->
+	<select id="getReviewCountByPaymentID" parameterType="int" resultType="int">
+		select count(*) from review_gg where payment_id=#{payment_id}
+	</select>
+	
+	<!-- ID로 결제정보 지우기 --> 
+	<delete id="deletePaymentById" parameterType="int">
+		delete from payment_gg where payment_id=#{payment_id}
+	</delete>
+	
+	<!-- 전체 신청 개수 가져오기 -->
+	<select id="getApplicationCount" resultType="int">
+		select count(*) from application_gg
+	</select>
+	
+	<!-- 전체 신청 리스트 가져오기(범위) -->
+	<select id="getApplicationRangeList"  parameterType="common.PageInfoDto" resultType="dto.join.ManagerApplicationListDto">
+		select *
+		from(select a.application_id, a.member_id, a.post_id, a.applytime, a.amount,
+				m.nickname, p.post_title, rownum r 
+			 from application_gg a, member_gg m, post_gg p
+			 where a.member_id = m.member_id and a.post_id = p.post_id )
+		where r &gt;= #{start} and r &lt;= #{end} 
+	</select>
+	
+	<!-- Application ID로 결제여부 확인하기 -->
+	<select id="getCheckPaymentByApplicationId" parameterType="int" resultType="int">
+		select count(*) from payment_gg where application_id=#{application_id}
+	</select>
+	
+	<!-- ID로 신청 정보 삭제하기 -->
+	<delete id="deleteApplicationById" parameterType="int">
+		delete from application_gg where application_id=#{application_id}
+	</delete>
+	
+	<!-- 게시글 등록하기 -->
+	<insert id="insertPost" parameterType="dto.PostDto">
+		insert into post_gg(post_title, product_id, default_price, minimum_amount, content)
+		values(#{post_title}, #{product_id}, #{default_price}, #{minimum_amount}, #{content})
+	</insert>
+	
+	<!-- post_id로 신청 개수 얻기  -->
+	<select id="getCountApllicationByPostId" parameterType="int" resultType="int">
+		select count(*) from application_gg where post_id=#{post)id}
+	</select>
+
+	<!-- 진행중인 포스트 지우기, 진행상태는 아직 조건문에 미포함 -->
+	<delete id="deleteActivePost" parameterType="int">
+		delete from post_gg where post_id=#{post_id}
+	</delete>
+	
+	<!-- 게시글 수정에 사용될 정보 가져오기 -->
+	<select id="getModifyPostByPostId" parameterType="int" resultType="dto.join.ManagerModifyPostDto">
+		select po.post_id, po.post_title, po.product_id, po.default_price, po.fixed_price, po.minimum_amount, 
+				po.current_amount, po.payment_amount, po.post_status, po.content, po.post_time,
+				pr.product_name, pr.product_model, c.category_name
+		from post_gg po, product_gg pr, category_gg c
+		where po.post_id = #{post_id} and po.product_id = pr.product_id and pr.category_id = c.category_id
+	</select>
+	
+	<!-- 게시글 수정하기  -->
+	<update id="updatePost" parameterType="dto.PostDto">
+		update post_gg
+		set post_title = #{post_title}, product_id = #{product_id}, default_price = #{default_price},
+							minimum_amount = #{minimum_amount}, content = #{content}
+		where post_id = #{post_id}
+	</update>
+
+</mapper>
+
+
